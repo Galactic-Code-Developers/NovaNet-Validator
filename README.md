@@ -1,4 +1,5 @@
 # NovaNet Validator Node
+Shield: [![CC BY-NC 4.0][cc-by-nc-shield]][cc-by-nc]
 
 ## Overview
 The NovaNet Validator Node secures the NovaNet blockchain using Quantum Delegated Proof-of-Stake (Q-DPoS).
