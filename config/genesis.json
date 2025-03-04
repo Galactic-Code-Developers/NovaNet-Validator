@@ -1,0 +1,9 @@
+{
+  "chain_id": "NovaNet-1",
+  "validators": [
+    {
+      "address": "NOVA1x3y5a8...",
+      "power": "5000"
+    }
+  ],
+  "app_hash": ""
