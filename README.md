@@ -3,7 +3,6 @@
 
 ## Overview
 The NovaNet Validator Node secures the NovaNet blockchain using Quantum Delegated Proof-of-Stake (Q-DPoS).
-## License
 
 ## Installation
 ```bash
@@ -12,6 +11,8 @@ cd Blockchain-NovaNet-NOVA
 chmod +x install.sh
 ./install.sh
 ```
+## License
+
 [![CC BY-NC 4.0][cc-by-nc-image]][cc-by-nc]
 
 [cc-by-nc]: https://creativecommons.org/licenses/by-nc/4.0/
