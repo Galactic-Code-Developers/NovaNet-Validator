@@ -25,6 +25,9 @@ RUN apt update && apt install -y \
     libnvinfer-plugin7 \
     && rm -rf /var/lib/apt/lists/*
 
+# Install Python dependencies for AI Validator Selection
+RUN pip3 install numpy pycuda tensorrt
+
 # Set environment variables for CUDA and TensorRT
 ENV PATH=/usr/local/cuda/bin:$PATH
 ENV LD_LIBRARY_PATH=/usr/local/cuda/lib64:$LD_LIBRARY_PATH
@@ -32,8 +35,11 @@ ENV LD_LIBRARY_PATH=/usr/local/cuda/lib64:$LD_LIBRARY_PATH
 # Copy NovaNet validator source code
 COPY . /novanet
 
+# Copy AI model (must be added to the NovaNet repo or built inside the container)
+COPY validator_model.trt /novanet/
+
 # Build the validator
 RUN make build
 
-# Start the NovaNet validator with GPU acceleration
-CMD ["novanet-cli", "start", "--validator", "--use-gpu"]
+# Start the NovaNet validator with GPU acceleration and AI inference
+CMD ["python3", "/novanet/run_validator.py"]
