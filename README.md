@@ -7,7 +7,7 @@ The NovaNet Validator Node secures the NovaNet blockchain using Quantum Delegate
 ## Installation
 ```bash
 git clone https://github.com/Galactic-Code-Developers/NovaNet-Validator.git
-cd Blockchain-NovaNet-NOVA
+cd NovaNet-Validator
 chmod +x install.sh
 ./install.sh
 ```
