@@ -1,0 +1,9 @@
+[validator]
+node_id = "YOUR_NODE_ID"
+stake_min = 5000  
+reward_rate = 0.10  
+slashing_penalty = 0.02  
+
+[network]
+p2p_port = 26656
+rpc_port = 26657
