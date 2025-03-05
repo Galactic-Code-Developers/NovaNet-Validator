@@ -37,6 +37,7 @@ contract Governance is Ownable {
     event VoteCasted(uint256 indexed id, address indexed voter, bool support, uint256 votingPower);
     event ProposalExecuted(uint256 indexed id);
     event AIAuditLogCreated(uint256 indexed proposalId, string auditLog);
+    event DelegationOptimized(address indexed delegator, address indexed validator, uint256 stakeAmount);
 
     constructor(address _validatorContract, address _delegatorContract, address _treasury) {
         validatorContract = NovaNetValidator(_validatorContract);
@@ -131,6 +132,16 @@ contract Governance is Ownable {
         }
 
         emit ProposalExecuted(_proposalId);
+    }
+
+    function optimizeDelegation(address delegator) external onlyOwner {
+        address bestValidator = validatorContract.getBestValidator();
+        uint256 stakeAmount = delegatorContract.getDelegatedStake(delegator);
+
+        require(stakeAmount > 0, "No stake to delegate");
+
+        delegatorContract.redelegateStake(delegator, bestValidator);
+        emit DelegationOptimized(delegator, bestValidator, stakeAmount);
     }
 
     function getProposal(uint256 _proposalId) external view returns (
