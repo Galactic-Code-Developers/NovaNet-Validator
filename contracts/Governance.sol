@@ -38,7 +38,6 @@ contract Governance is Ownable {
     event ProposalCreated(uint256 indexed id, address indexed proposer, string description, uint256 aiScore);
     event VoteCasted(uint256 indexed id, address indexed voter, bool support, uint256 votingPower);
     event ProposalExecuted(uint256 indexed id);
-    event AIAuditLogCreated(uint256 indexed proposalId, string auditLog);
     event TreasuryFunded(address indexed recipient, uint256 amount, uint256 aiScore);
 
     constructor(
@@ -85,41 +84,9 @@ contract Governance is Ownable {
         newProposal.aiScore = aiScore;
 
         // Log AI audit trail
-        string memory auditEntry = string(
-            abi.encodePacked(
-                "Proposal ID: ", uintToString(proposalCount),
-                " | AI Score: ", uintToString(aiScore),
-                " | Type: ", proposalTypeToString(_type),
-                " | Description: ", _description
-            )
-        );
-        auditLogger.logGovernanceAction(proposalCount, auditEntry);
+        auditLogger.logAudit(proposalCount, "PROPOSAL_SUBMITTED", 0, msg.sender);
 
-        emit AIAuditLogCreated(proposalCount, auditEntry);
         emit ProposalCreated(proposalCount, msg.sender, _description, aiScore);
-    }
-
-    function vote(uint256 _proposalId, bool _support) external onlyValidatorOrDelegator {
-        Proposal storage proposal = proposals[_proposalId];
-        require(block.timestamp >= proposal.startTime, "Voting not started");
-        require(block.timestamp <= proposal.endTime, "Voting ended");
-        require(!proposal.voted[msg.sender], "Already voted");
-
-        uint256 votingPower = validatorContract.getValidatorStake(msg.sender);
-        if (votingPower == 0) {
-            votingPower = delegatorContract.getDelegatedStake(msg.sender);
-        }
-
-        require(votingPower > 0, "No voting power");
-        proposal.voted[msg.sender] = true;
-
-        if (_support) {
-            proposal.votesFor += votingPower;
-        } else {
-            proposal.votesAgainst += votingPower;
-        }
-
-        emit VoteCasted(_proposalId, msg.sender, _support, votingPower);
     }
 
     function executeProposal(uint256 _proposalId) external onlyOwner {
@@ -142,61 +109,16 @@ contract Governance is Ownable {
             // Execute network upgrade logic
         }
 
-        // Log execution in AI audit system
-        string memory executionLog = string(
-            abi.encodePacked(
-                "Executed Proposal ID: ", uintToString(_proposalId),
-                " | AI Score: ", uintToString(proposal.aiScore),
-                " | Type: ", proposalTypeToString(proposal.proposalType)
-            )
-        );
-        auditLogger.logGovernanceAction(_proposalId, executionLog);
+        auditLogger.logAudit(_proposalId, "PROPOSAL_EXECUTED", proposal.fundAmount, msg.sender);
 
         emit ProposalExecuted(_proposalId);
     }
 
-    function calculateAIScore(
-        string memory _description,
-        ProposalType _type,
-        uint256 _fundAmount
-    ) internal pure returns (uint256) {
-        uint256 score = 100;
-        if (_type == ProposalType.TREASURY_ALLOCATION && _fundAmount > 10000 ether) {
-            score -= 30;
-        }
-        if (_type == ProposalType.SLASH_VALIDATOR) {
-            score += 20;
-        }
-        return score;
+    function getAIAuditLog(uint256 proposalId) external view returns (AIAuditLogger.AuditLog memory) {
+        return auditLogger.getAuditLogByProposalId(proposalId);
     }
 
     function calculateAITreasuryFunding(uint256 requestedAmount, uint256 aiScore) internal pure returns (uint256) {
         return (requestedAmount * aiScore) / 100;
-    }
-
-    function uintToString(uint256 _value) internal pure returns (string memory) {
-        if (_value == 0) return "0";
-        uint256 temp = _value;
-        uint256 digits;
-        while (temp != 0) {
-            digits++;
-            temp /= 10;
-        }
-        bytes memory buffer = new bytes(digits);
-        while (_value != 0) {
-            digits -= 1;
-            buffer[digits] = bytes1(uint8(48 + uint256(_value % 10)));
-            _value /= 10;
-        }
-        return string(buffer);
-    }
-
-    function proposalTypeToString(ProposalType _type) internal pure returns (string memory) {
-        if (_type == ProposalType.GENERAL) return "GENERAL";
-        if (_type == ProposalType.SLASH_VALIDATOR) return "SLASH_VALIDATOR";
-        if (_type == ProposalType.TREASURY_ALLOCATION) return "TREASURY_ALLOCATION";
-        if (_type == ProposalType.PARAMETER_UPDATE) return "PARAMETER_UPDATE";
-        if (_type == ProposalType.NETWORK_UPGRADE) return "NETWORK_UPGRADE";
-        return "UNKNOWN";
     }
 }
