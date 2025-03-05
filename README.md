@@ -101,18 +101,6 @@ Validators **earn rewards** based on participation and network contributions.
 
 * **NovaNet Validators combine AI, quantum security, and energy efficiency for a next-generation blockchain.**  
 
----
-
-## **7. How to Join as a Validator**
-Interested in running a **NovaNet Validator**? Follow these steps:
-
-### **Step 1: Install NovaNet Validator Software**
-```bash
-sudo apt update && sudo apt install -y build-essential git cmake curl jq \
-    python3-pip libssl-dev nvidia-jetpack cuda-toolkit-10-2 \
-    libcudnn8 tensorrt libnvinfer7 libnvinfer-plugin7
-
-```
 ## License
 
 [![CC BY-NC 4.0][cc-by-nc-image]][cc-by-nc]
