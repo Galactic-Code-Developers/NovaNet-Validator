@@ -19,6 +19,7 @@ contract Governance is Ownable {
         ProposalType proposalType;
         uint256 fundAmount;
         address payable recipient;
+        uint256 aiScore;
         mapping(address => bool) voted;
     }
 
@@ -30,9 +31,9 @@ contract Governance is Ownable {
     DelegatorContract public delegatorContract;
     Treasury public treasury;
 
-    event ProposalCreated(uint256 indexed id, address indexed proposer, string description);
-    event VoteCasted(uint256 indexed id, address indexed voter, bool support);
-    event ProposalExecuted(uint256 indexed id);
+    event ProposalCreated(uint256 indexed id, address indexed proposer, string description, uint256 aiScore);
+    event VoteCasted(uint256 indexed id, address indexed voter, bool support, uint256 weightedVote);
+    event ProposalExecuted(uint256 indexed id, bool success);
 
     constructor(address _validatorContract, address _delegatorContract, address _treasury) {
         validatorContract = NovaNetValidator(_validatorContract);
@@ -56,6 +57,9 @@ contract Governance is Ownable {
         uint256 _fundAmount,
         address payable _recipient
     ) external onlyValidatorOrDelegator {
+        uint256 proposalImpactScore = AIProposalScoring.evaluateProposal(msg.sender, _description, _type, _fundAmount);
+        require(proposalImpactScore > 50, "Proposal impact score too low");
+
         proposalCount++;
         Proposal storage newProposal = proposals[proposalCount];
         newProposal.id = proposalCount;
@@ -67,8 +71,9 @@ contract Governance is Ownable {
         newProposal.proposalType = _type;
         newProposal.fundAmount = _fundAmount;
         newProposal.recipient = _recipient;
+        newProposal.aiScore = proposalImpactScore;
 
-        emit ProposalCreated(proposalCount, msg.sender, _description);
+        emit ProposalCreated(proposalCount, msg.sender, _description, proposalImpactScore);
     }
 
     function vote(uint256 _proposalId, bool _support) external onlyValidatorOrDelegator {
@@ -81,18 +86,19 @@ contract Governance is Ownable {
         if (votingPower == 0) {
             votingPower = delegatorContract.getDelegatedStake(msg.sender);
         }
-        
-        require(votingPower > 0, "No voting power");
+
+        uint256 aiAdjustedVotePower = AIVotingModel.calculateVotingPower(msg.sender, votingPower);
+        require(aiAdjustedVotePower > 0, "Voting power too low");
 
         proposal.voted[msg.sender] = true;
 
         if (_support) {
-            proposal.votesFor += votingPower;
+            proposal.votesFor += aiAdjustedVotePower;
         } else {
-            proposal.votesAgainst += votingPower;
+            proposal.votesAgainst += aiAdjustedVotePower;
         }
 
-        emit VoteCasted(_proposalId, msg.sender, _support);
+        emit VoteCasted(_proposalId, msg.sender, _support, aiAdjustedVotePower);
     }
 
     function executeProposal(uint256 _proposalId) external onlyOwner {
@@ -101,8 +107,11 @@ contract Governance is Ownable {
         require(block.timestamp > proposal.endTime, "Voting not ended");
         require(proposal.votesFor > proposal.votesAgainst, "Proposal not approved");
 
+        bool aiApproved = AIExecutionFilter.verifyProposalExecution(_proposalId, proposal.votesFor, proposal.votesAgainst);
+        require(aiApproved, "Proposal rejected by AI security filter");
+
         proposal.executed = true;
-        
+
         if (proposal.proposalType == ProposalType.SLASH_VALIDATOR) {
             validatorContract.slashValidator(proposal.recipient);
         } else if (proposal.proposalType == ProposalType.TREASURY_ALLOCATION) {
@@ -113,13 +122,13 @@ contract Governance is Ownable {
             // Execute network upgrade logic
         }
 
-        emit ProposalExecuted(_proposalId);
+        emit ProposalExecuted(_proposalId, true);
     }
 
     function getProposal(uint256 _proposalId) external view returns (
-        address proposer, string memory description, uint256 votesFor, uint256 votesAgainst, bool executed
+        address proposer, string memory description, uint256 votesFor, uint256 votesAgainst, bool executed, uint256 aiScore
     ) {
         Proposal storage proposal = proposals[_proposalId];
-        return (proposal.proposer, proposal.description, proposal.votesFor, proposal.votesAgainst, proposal.executed);
+        return (proposal.proposer, proposal.description, proposal.votesFor, proposal.votesAgainst, proposal.executed, proposal.aiScore);
     }
 }
