@@ -1,49 +1,64 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
+import "@openzeppelin/contracts/access/Ownable.sol";
 import "./NovaNetValidator.sol";
+import "./AIValidatorSelection.sol";
+import "./AIRewardDistribution.sol";
+import "./AISlashingMonitor.sol";
+import "./AISlashingAppeal.sol";
+import "./AIVotingModel.sol";
 
-contract DelegatorContract {
-    address public owner;
-    NovaNetValidator public novaNetValidator;
-
+contract DelegatorContract is Ownable {
     struct Delegation {
-        uint256 amount;
+        address delegator;
         address validator;
+        uint256 amount;
+        uint256 lastRewardClaim;
     }
+
+    NovaNetValidator public validatorContract;
+    AIValidatorSelection public aiValidatorSelection;
+    AIRewardDistribution public aiRewardDistribution;
+    AISlashingMonitor public slashingMonitor;
+    AISlashingAppeal public slashingAppeal;
+    AIVotingModel public votingModel;
 
     mapping(address => Delegation) public delegations;
-    mapping(address => uint256) public totalDelegatedToValidator;
-    
-    event DelegationAdded(address indexed delegator, address indexed validator, uint256 amount);
+    mapping(address => uint256) public totalStakedByDelegator;
+
+    event StakeDelegated(address indexed delegator, address indexed validator, uint256 amount);
+    event StakeWithdrawn(address indexed delegator, uint256 amount);
     event RewardsClaimed(address indexed delegator, uint256 amount);
+    event DelegatorSlashed(address indexed delegator, uint256 penalty);
 
-    constructor(address _validatorContract) {
-        owner = msg.sender;
-        novaNetValidator = NovaNetValidator(_validatorContract);
+    constructor(
+        address _validatorContract,
+        address _aiValidatorSelection,
+        address _aiRewardDistribution,
+        address _slashingMonitor,
+        address _slashingAppeal,
+        address _votingModel
+    ) {
+        validatorContract = NovaNetValidator(_validatorContract);
+        aiValidatorSelection = AIValidatorSelection(_aiValidatorSelection);
+        aiRewardDistribution = AIRewardDistribution(_aiRewardDistribution);
+        slashingMonitor = AISlashingMonitor(_slashingMonitor);
+        slashingAppeal = AISlashingAppeal(_slashingAppeal);
+        votingModel = AIVotingModel(_votingModel);
     }
 
-    function delegateStake(address validator, uint256 amount) external {
-        require(amount > 0, "Cannot delegate zero");
-        require(novaNetValidator.getValidatorStake(validator) > 0, "Validator does not exist");
-        
-        delegations[msg.sender] = Delegation(amount, validator);
-        totalDelegatedToValidator[validator] += amount;
+    /// @notice Delegate stake to an AI-selected validator
+    function delegateStake(uint256 amount) external {
+        require(amount > 0, "Cannot stake 0 tokens.");
+        require(delegations[msg.sender].validator == address(0), "Already staked.");
 
-        emit DelegationAdded(msg.sender, validator, amount);
+        address bestValidator = aiValidatorSelection.selectBestValidator();
+        require(bestValidator != address(0), "No suitable validators found.");
+
+        delegations[msg.sender] = Delegation(msg.sender, bestValidator, amount, block.timestamp);
+        totalStakedByDelegator[msg.sender] += amount;
+        validatorContract.stake(msg.sender, bestValidator, amount);
+
+        emit StakeDelegated(msg.sender, bestValidator, amount);
     }
-
-    function claimRewards() external {
-        Delegation memory delegation = delegations[msg.sender];
-        require(delegation.amount > 0, "No delegation found");
-
-        uint256 reward = delegation.amount / 10; // Example reward logic (10% of stake)
-        payable(msg.sender).transfer(reward);
-
-        emit RewardsClaimed(msg.sender, reward);
-    }
-
-    function getValidators() external view returns (address[] memory) {
-        // Needs implementation to track active validators
-    }
-}
