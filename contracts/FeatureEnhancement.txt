@@ -2,11 +2,11 @@ Final Enhancements to NovaChain
 
 Feature	Enhancement
 
-Real-Time AI Auditing	Tracks validator uptime, stake, and block validation in real-time.
-AI-Driven Slashing & Appeals	Automatically penalizes malicious validators while allowing valid appeals.
-Reputation Learning System	AI adjusts validator rankings dynamically based on historical data.
-Validator Leaderboard	Publicly ranks and displays the best validators for transparency.
-Automated AI-Powered Penalties & Rewards	High-performing validators get higher incentives, while malicious ones get slashed.
+Real-Time AI Auditing	| Tracks validator uptime, stake, and block validation in real-time.
+AI-Driven Slashing & Appeals	| Automatically penalizes malicious validators while allowing valid appeals.
+Reputation Learning System	| AI adjusts validator rankings dynamically based on historical data.
+Validator Leaderboard	| Publicly ranks and displays the best validators for transparency.
+Automated AI-Powered Penalties & Rewards | High-performing validators get higher incentives, while malicious ones get slashed.
 
 ✔ Ensures a fair and transparent governance model.
 ✔ Uses AI-driven security for real-time validator monitoring.
