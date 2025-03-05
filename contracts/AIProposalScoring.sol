@@ -1,37 +1,45 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-contract AIProposalScoring {
+import "@openzeppelin/contracts/access/Ownable.sol";
+
+contract AIProposalScoring is Ownable {
     struct Proposal {
         uint256 id;
-        address proposer;
         string description;
+        address proposer;
+        uint256 timestamp;
         uint256 aiScore;
         bool approved;
     }
 
-    mapping(uint256 => Proposal) public proposals;
     uint256 public proposalCount;
+    mapping(uint256 => Proposal) public proposals;
+    mapping(address => uint256) public proposerReputation;
 
-    event ProposalScored(uint256 indexed id, uint256 aiScore, bool approved);
+    event ProposalEvaluated(uint256 indexed id, uint256 aiScore, bool approved);
 
-    function scoreProposal(string memory _description) public returns (uint256) {
+    function submitProposal(string memory _description) external {
+        uint256 aiScore = _evaluateProposal(msg.sender, _description);
+        bool approved = aiScore >= 60; // Requires at least 60% score
+
         proposalCount++;
-        uint256 aiScore = calculateAIScore(_description);
+        proposals[proposalCount] = Proposal(proposalCount, _description, msg.sender, block.timestamp, aiScore, approved);
 
-        proposals[proposalCount] = Proposal({
-            id: proposalCount,
-            proposer: msg.sender,
-            description: _description,
-            aiScore: aiScore,
-            approved: aiScore > 60 // AI approves proposals with a score > 60
-        });
-
-        emit ProposalScored(proposalCount, aiScore, proposals[proposalCount].approved);
-        return aiScore;
+        emit ProposalEvaluated(proposalCount, aiScore, approved);
     }
 
-    function calculateAIScore(string memory _description) internal pure returns (uint256) {
-        return uint256(keccak256(abi.encodePacked(_description))) % 100;
+    function _evaluateProposal(address _proposer, string memory _description) internal view returns (uint256) {
+        uint256 repScore = proposerReputation[_proposer];
+        uint256 textQuality = _analyzeText(_description);
+        return (repScore + textQuality) / 2;
+    }
+
+    function _analyzeText(string memory _text) internal pure returns (uint256) {
+        return bytes(_text).length % 100; // Placeholder for AI text analysis
+    }
+
+    function updateReputation(address _proposer, uint256 _score) external onlyOwner {
+        proposerReputation[_proposer] = _score;
     }
 }
