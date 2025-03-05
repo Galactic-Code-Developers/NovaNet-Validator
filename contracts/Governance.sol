@@ -5,6 +5,9 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "./NovaNetValidator.sol";
 import "./DelegatorContract.sol";
 import "./Treasury.sol";
+import "./AIProposalScoring.sol";
+import "./AIVotingModel.sol";
+import "./AIExecutionFilter.sol";
 
 contract Governance is Ownable {
     struct Proposal {
@@ -19,7 +22,8 @@ contract Governance is Ownable {
         ProposalType proposalType;
         uint256 fundAmount;
         address payable recipient;
-        uint256 aiScore; // AI-driven governance scoring
+        uint256 aiScore; // AI governance scoring
+        bool filtered; // AI Execution Filter result
         mapping(address => bool) voted;
     }
 
@@ -27,23 +31,36 @@ contract Governance is Ownable {
 
     uint256 public proposalCount;
     mapping(uint256 => Proposal) public proposals;
-    mapping(uint256 => string) public aiAuditLogs; // AI governance audit logs
+    mapping(uint256 => string) public aiAuditLogs;
 
     NovaNetValidator public validatorContract;
     DelegatorContract public delegatorContract;
     Treasury public treasury;
+    AIProposalScoring public aiScoring;
+    AIVotingModel public aiVoting;
+    AIExecutionFilter public aiExecutionFilter;
 
-    event ProposalCreated(uint256 indexed id, address indexed proposer, string description, uint256 aiScore);
-    event VoteCasted(uint256 indexed id, address indexed voter, bool support, uint256 votingPower);
+    event ProposalCreated(uint256 indexed id, address indexed proposer, string description, uint256 aiScore, bool filtered);
+    event VoteCasted(uint256 indexed id, address indexed voter, bool support, uint256 weightedVotingPower);
     event ProposalExecuted(uint256 indexed id);
     event AIAuditLogCreated(uint256 indexed proposalId, string auditLog);
     event DelegationOptimized(address indexed delegator, address indexed validator, uint256 stakeAmount);
     event TreasuryFunded(address indexed recipient, uint256 amount, uint256 aiScore);
 
-    constructor(address _validatorContract, address _delegatorContract, address _treasury) {
+    constructor(
+        address _validatorContract,
+        address _delegatorContract,
+        address _treasury,
+        address _aiScoring,
+        address _aiVoting,
+        address _aiExecutionFilter
+    ) {
         validatorContract = NovaNetValidator(_validatorContract);
         delegatorContract = DelegatorContract(_delegatorContract);
         treasury = Treasury(_treasury);
+        aiScoring = AIProposalScoring(_aiScoring);
+        aiVoting = AIVotingModel(_aiVoting);
+        aiExecutionFilter = AIExecutionFilter(_aiExecutionFilter);
     }
 
     modifier onlyValidatorOrDelegator() {
@@ -63,7 +80,9 @@ contract Governance is Ownable {
         address payable _recipient
     ) external onlyValidatorOrDelegator {
         proposalCount++;
-        uint256 aiScore = calculateAIScore(_description, _type, _fundAmount);
+
+        uint256 aiScore = aiScoring.evaluateProposal(proposalCount, msg.sender, _description, _type, _fundAmount);
+        bool filtered = aiExecutionFilter.shouldExecuteProposal(aiScore, _type);
 
         Proposal storage newProposal = proposals[proposalCount];
         newProposal.id = proposalCount;
@@ -76,19 +95,20 @@ contract Governance is Ownable {
         newProposal.fundAmount = _fundAmount;
         newProposal.recipient = _recipient;
         newProposal.aiScore = aiScore;
+        newProposal.filtered = filtered;
 
-        // Log AI audit trail
         aiAuditLogs[proposalCount] = string(
             abi.encodePacked(
                 "Proposal ID: ", uintToString(proposalCount),
                 " | AI Score: ", uintToString(aiScore),
+                " | Filtered: ", filtered ? "Yes" : "No",
                 " | Type: ", proposalTypeToString(_type),
                 " | Description: ", _description
             )
         );
-        emit AIAuditLogCreated(proposalCount, aiAuditLogs[proposalCount]);
 
-        emit ProposalCreated(proposalCount, msg.sender, _description, aiScore);
+        emit AIAuditLogCreated(proposalCount, aiAuditLogs[proposalCount]);
+        emit ProposalCreated(proposalCount, msg.sender, _description, aiScore, filtered);
     }
 
     function vote(uint256 _proposalId, bool _support) external onlyValidatorOrDelegator {
@@ -96,22 +116,26 @@ contract Governance is Ownable {
         require(block.timestamp >= proposal.startTime, "Voting not started");
         require(block.timestamp <= proposal.endTime, "Voting ended");
         require(!proposal.voted[msg.sender], "Already voted");
+        require(proposal.filtered, "Proposal blocked by AI Execution Filter");
 
         uint256 votingPower = validatorContract.getValidatorStake(msg.sender);
         if (votingPower == 0) {
             votingPower = delegatorContract.getDelegatedStake(msg.sender);
         }
 
-        require(votingPower > 0, "No voting power");
+        uint256 weightedPower = aiVoting.calculateWeightedVote(msg.sender, votingPower);
+
+        require(weightedPower > 0, "No voting power");
+
         proposal.voted[msg.sender] = true;
 
         if (_support) {
-            proposal.votesFor += votingPower;
+            proposal.votesFor += weightedPower;
         } else {
-            proposal.votesAgainst += votingPower;
+            proposal.votesAgainst += weightedPower;
         }
 
-        emit VoteCasted(_proposalId, msg.sender, _support, votingPower);
+        emit VoteCasted(_proposalId, msg.sender, _support, weightedPower);
     }
 
     function executeProposal(uint256 _proposalId) external onlyOwner {
@@ -119,13 +143,14 @@ contract Governance is Ownable {
         require(!proposal.executed, "Already executed");
         require(block.timestamp > proposal.endTime, "Voting not ended");
         require(proposal.votesFor > proposal.votesAgainst, "Proposal not approved");
+        require(proposal.filtered, "Blocked by AI Execution Filter");
 
         proposal.executed = true;
 
         if (proposal.proposalType == ProposalType.SLASH_VALIDATOR) {
             validatorContract.slashValidator(proposal.recipient);
         } else if (proposal.proposalType == ProposalType.TREASURY_ALLOCATION) {
-            uint256 aiAdjustedFunds = calculateAITreasuryFunding(proposal.fundAmount, proposal.aiScore);
+            uint256 aiAdjustedFunds = (proposal.fundAmount * proposal.aiScore) / 100;
             treasury.allocateFunds(proposal.recipient, aiAdjustedFunds);
             emit TreasuryFunded(proposal.recipient, aiAdjustedFunds, proposal.aiScore);
         } else if (proposal.proposalType == ProposalType.PARAMETER_UPDATE) {
@@ -145,25 +170,6 @@ contract Governance is Ownable {
 
         delegatorContract.redelegateStake(delegator, bestValidator);
         emit DelegationOptimized(delegator, bestValidator, stakeAmount);
-    }
-
-    function calculateAIScore(
-        string memory _description,
-        ProposalType _type,
-        uint256 _fundAmount
-    ) internal pure returns (uint256) {
-        uint256 score = 100;
-        if (_type == ProposalType.TREASURY_ALLOCATION && _fundAmount > 10000 ether) {
-            score -= 30;
-        }
-        if (_type == ProposalType.SLASH_VALIDATOR) {
-            score += 20;
-        }
-        return score;
-    }
-
-    function calculateAITreasuryFunding(uint256 requestedAmount, uint256 aiScore) internal pure returns (uint256) {
-        return (requestedAmount * aiScore) / 100;
     }
 
     function uintToString(uint256 _value) internal pure returns (string memory) {
