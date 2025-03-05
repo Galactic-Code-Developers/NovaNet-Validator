@@ -1,61 +1,37 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import "@openzeppelin/contracts/access/Ownable.sol";
-
-contract AIProposalScoring is Ownable {
-    struct ProposalAnalysis {
-        uint256 proposalId;
+contract AIProposalScoring {
+    struct Proposal {
+        uint256 id;
+        address proposer;
+        string description;
         uint256 aiScore;
         bool approved;
-        string reason;
     }
 
-    mapping(uint256 => ProposalAnalysis) public proposalEvaluations;
+    mapping(uint256 => Proposal) public proposals;
+    uint256 public proposalCount;
 
-    event ProposalEvaluated(uint256 indexed proposalId, uint256 aiScore, bool approved, string reason);
+    event ProposalScored(uint256 indexed id, uint256 aiScore, bool approved);
 
-    function evaluateProposal(
-        uint256 _proposalId,
-        string memory _description,
-        uint256 _fundAmount,
-        address proposer
-    ) external onlyOwner returns (bool) {
-        uint256 aiScore = calculateAIScore(_description, _fundAmount, proposer);
-        bool approved = aiScore >= 50; // AI rejects proposals below 50%
+    function scoreProposal(string memory _description) public returns (uint256) {
+        proposalCount++;
+        uint256 aiScore = calculateAIScore(_description);
 
-        string memory reason = approved ? "Approved" : "Rejected due to low AI score";
-
-        proposalEvaluations[_proposalId] = ProposalAnalysis({
-            proposalId: _proposalId,
+        proposals[proposalCount] = Proposal({
+            id: proposalCount,
+            proposer: msg.sender,
+            description: _description,
             aiScore: aiScore,
-            approved: approved,
-            reason: reason
+            approved: aiScore > 60 // AI approves proposals with a score > 60
         });
 
-        emit ProposalEvaluated(_proposalId, aiScore, approved, reason);
-        return approved;
+        emit ProposalScored(proposalCount, aiScore, proposals[proposalCount].approved);
+        return aiScore;
     }
 
-    function calculateAIScore(
-        string memory _description,
-        uint256 _fundAmount,
-        address proposer
-    ) internal pure returns (uint256) {
-        uint256 score = 100;
-
-        if (_fundAmount > 50000 ether) {
-            score -= 40; // High funding requests get penalized
-        }
-
-        if (bytes(_description).length < 50) {
-            score -= 20; // Penalize low-detail proposals
-        }
-
-        return score;
-    }
-
-    function getProposalEvaluation(uint256 _proposalId) external view returns (ProposalAnalysis memory) {
-        return proposalEvaluations[_proposalId];
+    function calculateAIScore(string memory _description) internal pure returns (uint256) {
+        return uint256(keccak256(abi.encodePacked(_description))) % 100;
     }
 }
