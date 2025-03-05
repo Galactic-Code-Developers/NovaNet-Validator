@@ -38,6 +38,7 @@ contract Governance is Ownable {
     event ProposalExecuted(uint256 indexed id);
     event AIAuditLogCreated(uint256 indexed proposalId, string auditLog);
     event DelegationOptimized(address indexed delegator, address indexed validator, uint256 stakeAmount);
+    event TreasuryFunded(address indexed recipient, uint256 amount, uint256 aiScore);
 
     constructor(address _validatorContract, address _delegatorContract, address _treasury) {
         validatorContract = NovaNetValidator(_validatorContract);
@@ -63,7 +64,7 @@ contract Governance is Ownable {
     ) external onlyValidatorOrDelegator {
         proposalCount++;
         uint256 aiScore = calculateAIScore(_description, _type, _fundAmount);
-        
+
         Proposal storage newProposal = proposals[proposalCount];
         newProposal.id = proposalCount;
         newProposal.proposer = msg.sender;
@@ -124,7 +125,9 @@ contract Governance is Ownable {
         if (proposal.proposalType == ProposalType.SLASH_VALIDATOR) {
             validatorContract.slashValidator(proposal.recipient);
         } else if (proposal.proposalType == ProposalType.TREASURY_ALLOCATION) {
-            treasury.allocateFunds(proposal.recipient, proposal.fundAmount);
+            uint256 aiAdjustedFunds = calculateAITreasuryFunding(proposal.fundAmount, proposal.aiScore);
+            treasury.allocateFunds(proposal.recipient, aiAdjustedFunds);
+            emit TreasuryFunded(proposal.recipient, aiAdjustedFunds, proposal.aiScore);
         } else if (proposal.proposalType == ProposalType.PARAMETER_UPDATE) {
             validatorContract.updateNetworkParameter(proposal.fundAmount);
         } else if (proposal.proposalType == ProposalType.NETWORK_UPGRADE) {
@@ -144,17 +147,6 @@ contract Governance is Ownable {
         emit DelegationOptimized(delegator, bestValidator, stakeAmount);
     }
 
-    function getProposal(uint256 _proposalId) external view returns (
-        address proposer, string memory description, uint256 votesFor, uint256 votesAgainst, bool executed, uint256 aiScore
-    ) {
-        Proposal storage proposal = proposals[_proposalId];
-        return (proposal.proposer, proposal.description, proposal.votesFor, proposal.votesAgainst, proposal.executed, proposal.aiScore);
-    }
-
-    function getAIAuditLog(uint256 _proposalId) external view returns (string memory) {
-        return aiAuditLogs[_proposalId];
-    }
-
     function calculateAIScore(
         string memory _description,
         ProposalType _type,
@@ -162,12 +154,16 @@ contract Governance is Ownable {
     ) internal pure returns (uint256) {
         uint256 score = 100;
         if (_type == ProposalType.TREASURY_ALLOCATION && _fundAmount > 10000 ether) {
-            score -= 30; // Reduce score for large fund requests
+            score -= 30;
         }
         if (_type == ProposalType.SLASH_VALIDATOR) {
-            score += 20; // Increase score for slashing proposals
+            score += 20;
         }
         return score;
+    }
+
+    function calculateAITreasuryFunding(uint256 requestedAmount, uint256 aiScore) internal pure returns (uint256) {
+        return (requestedAmount * aiScore) / 100;
     }
 
     function uintToString(uint256 _value) internal pure returns (string memory) {
