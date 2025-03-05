@@ -4,42 +4,85 @@ pragma solidity ^0.8.20;
 import "@openzeppelin/contracts/access/Ownable.sol";
 
 contract AIProposalScoring is Ownable {
-    struct Proposal {
-        uint256 id;
-        string description;
+    struct ProposalScore {
+        uint256 proposalId;
         address proposer;
+        uint256 feasibilityScore; // 0-100
+        uint256 networkImpactScore; // 0-100
+        uint256 securityRiskScore; // 0-100
+        uint256 finalScore; // Weighted final score
+        bool approved; // AI-based approval or rejection
+        string reason;
         uint256 timestamp;
-        uint256 aiScore;
-        bool approved;
     }
 
+    mapping(uint256 => ProposalScore) public proposalScores;
     uint256 public proposalCount;
-    mapping(uint256 => Proposal) public proposals;
-    mapping(address => uint256) public proposerReputation;
 
-    event ProposalEvaluated(uint256 indexed id, uint256 aiScore, bool approved);
+    event ProposalEvaluated(
+        uint256 indexed proposalId,
+        address indexed proposer,
+        uint256 feasibilityScore,
+        uint256 networkImpactScore,
+        uint256 securityRiskScore,
+        uint256 finalScore,
+        bool approved,
+        string reason,
+        uint256 timestamp
+    );
 
-    function submitProposal(string memory _description) external {
-        uint256 aiScore = _evaluateProposal(msg.sender, _description);
-        bool approved = aiScore >= 60; // Requires at least 60% score
+    // AI-Driven Proposal Evaluation
+    function evaluateProposal(
+        uint256 _proposalId,
+        address _proposer,
+        uint256 _feasibilityScore,
+        uint256 _networkImpactScore,
+        uint256 _securityRiskScore
+    ) external onlyOwner {
+        require(_feasibilityScore <= 100 && _networkImpactScore <= 100 && _securityRiskScore <= 100, "Scores must be between 0-100");
 
-        proposalCount++;
-        proposals[proposalCount] = Proposal(proposalCount, _description, msg.sender, block.timestamp, aiScore, approved);
+        uint256 finalScore = (_feasibilityScore * 40 / 100) + (_networkImpactScore * 40 / 100) - (_securityRiskScore * 20 / 100);
 
-        emit ProposalEvaluated(proposalCount, aiScore, approved);
+        bool approved = finalScore >= 50; // AI threshold for approval
+        string memory reason = approved ? "Proposal approved by AI evaluation" : "Proposal rejected due to low AI score";
+
+        proposalScores[_proposalId] = ProposalScore({
+            proposalId: _proposalId,
+            proposer: _proposer,
+            feasibilityScore: _feasibilityScore,
+            networkImpactScore: _networkImpactScore,
+            securityRiskScore: _securityRiskScore,
+            finalScore: finalScore,
+            approved: approved,
+            reason: reason,
+            timestamp: block.timestamp
+        });
+
+        emit ProposalEvaluated(_proposalId, _proposer, _feasibilityScore, _networkImpactScore, _securityRiskScore, finalScore, approved, reason, block.timestamp);
     }
 
-    function _evaluateProposal(address _proposer, string memory _description) internal view returns (uint256) {
-        uint256 repScore = proposerReputation[_proposer];
-        uint256 textQuality = _analyzeText(_description);
-        return (repScore + textQuality) / 2;
+    // Get Proposal Score
+    function getProposalScore(uint256 _proposalId) external view returns (
+        uint256 feasibilityScore,
+        uint256 networkImpactScore,
+        uint256 securityRiskScore,
+        uint256 finalScore,
+        bool approved,
+        string memory reason
+    ) {
+        ProposalScore storage score = proposalScores[_proposalId];
+        return (
+            score.feasibilityScore,
+            score.networkImpactScore,
+            score.securityRiskScore,
+            score.finalScore,
+            score.approved,
+            score.reason
+        );
     }
 
-    function _analyzeText(string memory _text) internal pure returns (uint256) {
-        return bytes(_text).length % 100; // Placeholder for AI text analysis
-    }
-
-    function updateReputation(address _proposer, uint256 _score) external onlyOwner {
-        proposerReputation[_proposer] = _score;
+    // Check if Proposal is Approved
+    function isProposalApproved(uint256 _proposalId) external view returns (bool) {
+        return proposalScores[_proposalId].approved;
     }
 }
