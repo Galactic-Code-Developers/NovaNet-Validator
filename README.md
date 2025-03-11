@@ -5,7 +5,7 @@ The NovaNet Validator is a high-performance, AI-optimized blockchain node respon
 
 NovaNet Validators leverage quantum-resistant cryptography, AI-driven validation models, and low-power hardware optimizations to ensure scalability, security, and decentralization.
 
-* AI-Optimized Validator Selection – Uses TensorRT acceleration on NVIDIA Jetson Orin Nano  
+* **AI-Optimized Validator Selection** – Uses TensorRT acceleration on NVIDIA Jetson Orin Nano  
 * Quantum-Resistant Cryptography (PQC) – Prevents quantum-based decryption attacks  
 * Energy-Efficient Deployment – Runs on low-power edge devices and cloud infrastructures  
 * Quantum-Assisted Execution – Uses Quantum-Assisted Virtual Machine (QAVM) for optimized smart contract processing  
