@@ -1,6 +1,6 @@
 # NovaNet Validator Overview
 
-## Introduction
+## Introduction 
 The NovaNet Validator is a high-performance, AI-optimized blockchain node responsible for securing the NovaNet blockchain, validating transactions, and participating in Quantum Delegated Proof-of-Stake (Q-DPoS) consensus.
 
 NovaNet Validators leverage quantum-resistant cryptography, AI-driven validation models, and low-power hardware optimizations to ensure scalability, security, and decentralization.
