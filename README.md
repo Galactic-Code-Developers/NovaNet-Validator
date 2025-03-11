@@ -3,11 +3,11 @@
 ## **Introduction**
 The **NovaNet Validator** is a high-performance, AI-optimized blockchain node responsible for securing the NovaNet blockchain, validating transactions, and participating in Quantum Delegated Proof-of-Stake (Q-DPoS) consensus.
 
-NovaNet Validators leverage quantum-resistant cryptography, AI-driven validation models, and low-power hardware optimizations to ensure scalability, security, and decentralization**.
+NovaNet Validators leverage quantum-resistant cryptography, AI-driven validation models, and low-power hardware optimizations to ensure scalability, security, and decentralization.
 
 * **AI-Optimized Validator Selection** – Uses TensorRT acceleration on NVIDIA Jetson Orin Nano  
 * **Post-Quantum Cryptography (PQC)** – Resistant to future quantum attacks  
-* **Energy-Efficient Deployment** – Runs on low-power edge devices** and **cloud infrastructures  
+* **Energy-Efficient Deployment** – Runs on low-power edge devices and cloud infrastructures  
 * **Quantum-Assisted Execution** – Uses Quantum-Assisted Virtual Machine (QAVM) for efficient smart contract processing  
 
 🔗 [NovaNet Validator GitHub Repository](https://github.com/Galactic-Code-Developers/NovaNet-Validator)
